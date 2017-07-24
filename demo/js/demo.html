@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <script src="./demo.js"></script>
+    <title>Document</title>
+    <style>
+
+        .outer{
+            position:absolute;
+            top:0px;
+            left:0px;
+            width:100%;
+            height:100%;
+            background: #ccc;
+
+        }
+        .left {
+            position:absolute;
+            top:0px;
+            left:0px;
+            width:20%;
+            height:100%;
+            background: #fff;
+        }
+        .right {
+            position: absolute;
+            top:0px;
+            right:0px;
+            width:80%;
+            height: 100%;
+            background: olive;
+
+        }
+        .msg-box {
+            position: absolute;
+            top:0px;
+            left:0px;
+            width:100%;
+            height:85%;
+            background:#ccc;
+        }
+        .msg-send {
+            position: absolute;
+            bottom: 0px;
+            height: 15%;
+            width:100%;
+        }
+        .msg-send textarea {
+            position: absolute;
+
+            width:98%;
+            top:0px;
+            left:0px;
+            bottom: 2em;
+            background: olive;
+            outline: none;
+            padding:4px;
+            resize: none;
+            border:none;
+        }
+        .msg-send .submit-btn {
+            position: absolute;
+            right:2em;
+            bottom:2px;
+            padding-left:1em;
+            padding-right:1em;
+
+            height:2em;
+            border:none;
+            background: blue;
+            color: #fff;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="outer">
+        <div id="left" class="left">
+            <ul>
+                <li>john</li>
+                <li>huahau</li>
+            </ul>
+        </div>
+        <div id="right" class="right">
+            <div id="msg-box" class="msg-box">
+
+            </div>
+            <div class="msg-send">
+ 
+                    <textarea class="msg-body" id="msg-body"></textarea>
+                    <input type="button" class="submit-btn" value="提交">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        new window.client({
+            notify:function(data) {
+                console.log(data)
+            }
+        })
+    </script>
+</body>
+
+</html>
