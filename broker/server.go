@@ -47,13 +47,13 @@ func serverWs(w http.ResponseWriter, r *http.Request) {
 	session.readPump()
 }
 
-func listenAndServer() {
+func listenAndServerWs() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/sub", wrapHandler(serverWs))
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
 
-func listentAndServerTcp() {
+func listentAndServerTCP() {
 
 	l, err := net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(globalConfig.tcpConfig.ip), globalConfig.tcpConfig.port, ""})
 	if err != nil {

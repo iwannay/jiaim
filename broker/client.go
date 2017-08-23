@@ -204,13 +204,13 @@ func (self *session) parseMsg(message msg) {
 		self.send <- msgResp
 	case authRequest:
 		responMsg.Op = authResponse
-		responMsg.Status = 1
+		responMsg.Status = statusSuccessNum
 		responMsg.Ver = message.Ver
 		self.hub.receiver <- &message
 		self.send <- responMsg
 	case clientSendMsg:
 		responMsg.Op = serverReplyMsg
-		responMsg.Status = 1
+		responMsg.Status = statusSuccessNum
 		responMsg.Ver = message.Ver
 		self.hub.receiver <- &message
 		self.send <- responMsg

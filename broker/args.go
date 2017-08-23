@@ -18,7 +18,8 @@ const (
 )
 
 var (
-	version = "1.0.0"
+	version          = "1.0.0"
+	statusSuccessNum = 0
 )
 
 type msg struct {
