@@ -67,7 +67,7 @@ func ListAndServer(laddr string, rcvrs ...interface{}) {
 	if err != nil {
 		log.Fatal("RPC:", err)
 	}
-	go http.Serve(l, nil)
+	http.Serve(l, nil)
 }
 
 func init() {

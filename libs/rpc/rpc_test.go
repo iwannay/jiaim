@@ -35,7 +35,7 @@ func TestCall(t *testing.T) {
 		}, wantErr: false},
 	}
 
-	for i := 0; i < 1000000; i++ {
+	for i := 0; i < 10000; i++ {
 		tests = append(tests, struct {
 			name    string
 			args    args
@@ -49,7 +49,7 @@ func TestCall(t *testing.T) {
 	}
 
 	// 创建rpc server
-	ListAndServer("localhost:1234", &Hello{})
+	go ListAndServer("localhost:1234", &Hello{})
 	time.Sleep(1 * time.Second)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
