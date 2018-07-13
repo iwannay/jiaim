@@ -1,44 +1,64 @@
 package main
 
-import "log"
-import "encoding/json"
+import (
+	"app/logic"
+	"app/pkg/hash/cityhash"
+	"app/pkg/proto"
+	"encoding/json"
+	"log"
+)
 
 type hub struct {
-	sessions map[*session]bool
-	receiver chan *msg
-	register chan *session
-
+	Buckets    []*Bucket
+	bucketIdx  uint32
+	receiver   chan *proto.Msg
+	register   chan *session
 	unregister chan *session
 }
 
-func newhub() *hub {
+func newhub(buckets []*Bucket) *hub {
 	h := &hub{
-		receiver:   make(chan *msg, 100),
-		sessions:   make(map[*session]bool),
+		receiver:   make(chan *proto.Msg, 100),
 		register:   make(chan *session),
+		Buckets:    buckets,
+		bucketIdx:  uint32(len(buckets)),
 		unregister: make(chan *session),
 	}
+
 	go h.run()
 	return h
+}
+
+func (h *hub) Bucket(subKey string) *Bucket {
+	idx := cityhash.CityHash32([]byte(subKey), uint32(len(subKey))) % h.bucketIdx
+	if Debug {
+		log.Printf("\"%s\" hit channel bucket index: %d use cityhash \n", subKey, idx)
+	}
+	return h.Buckets[idx]
 }
 
 func (h *hub) run() {
 	for {
 		select {
 		case client := <-h.register:
-			h.sessions[client] = true
-			// 调用route 更新client 状态
-		case client := <-h.unregister:
-			if _, ok := h.sessions[client]; ok {
-				delete(h.sessions, client)
-				// 调用route 更新client 状态
+			if Debug {
+				log.Printf("login %+v\n", client)
 			}
+			// TODO 用户登录 ，更新用户信息
+		case client := <-h.unregister:
+			if Debug {
+				log.Printf("logout %+v\n", client)
+			}
+			// TODO 用户退出，更新用户信息
 
 		case msg := <-h.receiver:
+			// TDOO 这里的逻辑暂时应该不用
 			byts, _ := json.Marshal(*msg)
-			log.Println("receiver", string(byts))
+			logic.Handle(msg)
+			if Debug {
+				log.Println("receiver", string(byts))
+			}
 			// TODO 调用chat server 发布信息
-
 		}
 	}
 }

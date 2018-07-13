@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <script src="./demo.js"></script>
+    <script src="./jquery.js"></script>
     <title>Document</title>
     <style>
-
         .outer{
             position:absolute;
             top:0px;
@@ -16,7 +15,6 @@
             width:100%;
             height:100%;
             background: #ccc;
-
         }
         .left {
             position:absolute;
@@ -33,7 +31,6 @@
             width:80%;
             height: 100%;
             background: olive;
-
         }
         .msg-box {
             position: absolute;
@@ -51,7 +48,6 @@
         }
         .msg-send textarea {
             position: absolute;
-
             width:98%;
             top:0px;
             left:0px;
@@ -68,7 +64,6 @@
             bottom:2px;
             padding-left:1em;
             padding-right:1em;
-
             height:2em;
             border:none;
             background: blue;
@@ -87,23 +82,29 @@
         </div>
         <div id="right" class="right">
             <div id="msg-box" class="msg-box">
-
             </div>
             <div class="msg-send">
  
                     <textarea class="msg-body" id="msg-body"></textarea>
-                    <input type="button" class="submit-btn" value="提交">
+                    <input type="button" id="sendMsg" class="submit-btn" value="提交">
             </div>
         </div>
     </div>
-
     <script>
-        new window.client({
+        var wsClient = new window.client({
             notify:function(data) {
-                console.log(data)
+                console.log(data);
+                var obj = JSON.parse(data);
+                $("#msg-box").append('<p style="color:red;text-align:right;border-bottom:1px solid black;padding:0 20px 0 5px;margin:5px;">'+obj.body+'</p>')
             }
-        })
+        });
+        
+        $("#sendMsg").on("click",function() {   
+            wsClient.send($("#msg-body").val());
+            $("#msg-body").val("")
+        });
+
+
+
     </script>
 </body>
-
-</html>

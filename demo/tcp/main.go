@@ -1,10 +1,10 @@
 package main
 
 import (
+	"app/pkg/protocol"
 	"bufio"
 	"fmt"
 	"io"
-	"jiaim/libs/protocol"
 	"net"
 	"os"
 	"time"
@@ -26,10 +26,8 @@ func readChan(rw *bufio.ReadWriter, readerChan <-chan []byte) {
 		}
 	}
 }
-
 func main() {
 	fmt.Println(usage)
-
 	rw := bufio.NewReadWriter(bufio.NewReader(os.Stdin), bufio.NewWriter(os.Stdout))
 	conn, err := net.DialTCP("tcp", nil, &net.TCPAddr{
 		net.ParseIP("localhost"),
@@ -41,7 +39,6 @@ func main() {
 		rw.Flush()
 		os.Exit(0)
 	}
-
 	go func(rw *bufio.ReadWriter, tcpConn *net.TCPConn) {
 		tmpBuffer := make([]byte, 0)
 		readerChannel := make(chan []byte, 16)
@@ -61,29 +58,23 @@ func main() {
 					rw.Flush()
 					continue
 				}
-
 			}
-
 			protocol.Unpack(append(tmpBuffer, buffer[:n]...), readerChannel)
 		}
 	}(rw, conn)
 	noticeChan <- struct{}{}
-
 	for {
 		if _, ok := <-noticeChan; ok {
 			fmt.Print("send>")
 		}
 		b, _, _ := rw.ReadLine()
-
 		if err != nil {
 			rw.WriteString(fmt.Sprintln(err))
 			rw.Flush()
 			continue
 		}
-
 		conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 		conn.Write(protocol.Packet(b))
 		rw.Flush()
 	}
-
 }

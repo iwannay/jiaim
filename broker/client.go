@@ -1,21 +1,20 @@
 package main
 
 import (
+	"app/pkg/proto"
+	"app/pkg/protocol"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
-
 	"time"
-
-	"encoding/json"
-
-	"jiaim/libs/protocol"
 
 	"github.com/gorilla/websocket"
 )
 
 const (
-	maxMessageSize = 1024
+	maxMessageSize = 1 << 10
 	writeWait      = 10 * time.Second
 	pongWait       = 60 * time.Second
 )
@@ -35,186 +34,188 @@ var upgrade = websocket.Upgrader{
 }
 
 type session struct {
-	uin     string // 每个producer/consumer都有一个系统分配的id
-	conn    *websocket.Conn
-	tcpConn net.Conn
-	hub     *hub
-	send    chan msg
+	bucketId  string   // 每个session最终都会hash到一个bucket里
+	id        string   // 每个session都有一个系统分配的id，可以不唯一，对应一个用户登录多个客户端
+	connectId string   // 每个连接都有一个系统分配的唯一id
+	Group     string   // 关联到group
+	ch        *Channel // 关联到channel
+	conn      *websocket.Conn
+	key       string  // key
+	b         *Bucket // 关联到所在的bucket
+	tcpConn   net.Conn
+
+	hub *hub
+
+	// 保存需要返回给客户端的信息
+	send chan proto.Msg
 }
 
-func (self *session) readPump() {
-	defer func() {
-		self.hub.unregister <- self
-		self.conn.Close()
-	}()
+func (s *session) readPump() {
 
-	self.conn.SetReadLimit(maxMessageSize)
-	// self.conn.SetReadDeadline(time.Now().Add(pongWait))
-	// self.conn.SetPongHandler(func(string) error {
-	// 	self.conn.SetReadDeadline(time.Now().Add(pongWait))
+	s.conn.SetReadLimit(maxMessageSize)
+
+	// TODO 这些参数需要后期调试
+	// s.conn.SetReadDeadline(time.Now().Add(pongWait))
+	// s.conn.SetPongHandler(func(string) error {
+	// 	s.conn.SetReadDeadline(time.Now().Add(pongWait))
 	// 	return nil
 	// })
 
 	for {
-		var message msg
-		err := self.conn.ReadJSON(&message)
+		message, err := s.ch.Cache.Set()
+
 		if err != nil {
-			log.Println(err)
+			log.Println("[ERROR]", err)
+			break
+		}
+		err = s.conn.ReadJSON(&message)
+
+		if err != nil {
+			log.Println("[ERROR]", err)
 			websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway)
 			break
 		}
 
-		self.parseMsg(message)
-
-		// switch message.Op {
-		// case clientSendHeartbeat:
-		// 	self.hub.receiver <- &message
-		// 	self.send <- message
-		// case authRequest:
-		// 	responMsg.Op = authResponse
-		// 	responMsg.Status = 1
-		// 	responMsg.Ver = message.Ver
-		// 	self.hub.receiver <- &message
-		// 	self.send <- responMsg
-		// case clientSendMsg:
-		// 	responMsg.Op = serverReplyMsg
-		// 	responMsg.Status = 1
-		// 	responMsg.Ver = message.Ver
-		// 	self.hub.receiver <- &message
-		// 	self.send <- responMsg
-		// default:
-		// 	self.send <- message
-		// }
-
+		s.ch.Cache.SetAdv()
+		s.ch.Signal()
 	}
+
+	s.hub.unregister <- s
+	s.ch.Close()
+	s.conn.Close()
+	s.b.Del(s.id)
 }
 
-func (self *session) writePump() {
+func (s *session) writePump() {
 	defer func() {
-		self.conn.Close()
-		self.hub.unregister <- self
+		s.hub.unregister <- s
 	}()
 
+	var finish bool
+
 	for {
-		select {
-		case message, ok := <-self.send:
-			// log.Println("receive", message)
-			self.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if !ok {
-				self.conn.WriteJSON(msg{
-					Ver: version,
-					Op:  serverReplyError,
-				})
+		state := s.ch.Ready()
+		switch state {
+		case proto.MsgFinish:
+			finish = true
+			break
+		case proto.MsgReady: // 全部读完
+			for {
+				s.conn.SetWriteDeadline(time.Now().Add(writeWait))
+
+				msg, err := s.ch.Cache.Get()
+				if err != nil {
+					break
+				}
+				s.parseMsg(msg)
+				bts, _ := json.Marshal(msg)
+				if Debug {
+					fmt.Println("response----", string(bts))
+				}
+
+				s.conn.WriteJSON(msg)
+				// 丢给gc
+				msg.Body = nil
+				s.ch.Cache.GetAdv()
+
+			}
+		default:
+			if len(state.Body) == 0 {
+				continue
 			}
 
-			w, err := self.conn.NextWriter(websocket.TextMessage)
-			if err != nil {
-				return
+			s.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			s.parseMsg(state)
+			s.conn.WriteJSON(state)
+			if Debug {
+				log.Println("group-----", string(state.Body), state.MsgId, *state)
 			}
-
-			msgStr, _ := json.Marshal(message)
-			// log.Println(msgStr)
-			w.Write(msgStr)
-			length := len(self.send)
-			for i := 0; i < length; i++ {
-
-				w.Write(newLine)
-				tmp := <-self.send
-				msgStr, _ := json.Marshal(tmp)
-				w.Write(msgStr)
-			}
-			if err := w.Close(); err != nil {
-				return
-			}
+			// 丢给gc
+			state.Body = nil
 		}
 	}
+
+	// 写通道已经挂了。。数据全部刷出去。直到读通道也挂了
+	// TODO 后期可以做持久化处理
+	s.conn.Close()
+	for !finish {
+		finish = (s.ch.Ready() == proto.MsgFinish)
+	}
+
 }
 
-func (self *session) readTcpPump() {
+func (s *session) readTcpPump() {
 	defer func() {
-		self.hub.unregister <- self
-		self.tcpConn.Close()
+		s.hub.unregister <- s
+		s.tcpConn.Close()
 	}()
 	tmpBuffer := make([]byte, 0)
 	buffer := make([]byte, 1024)
 	readerChannel := make(chan []byte, 16)
-	go self.readChan(readerChannel)
+	go s.readChan(readerChannel)
 	for {
-
-		n, err := self.tcpConn.Read(buffer)
+		n, err := s.tcpConn.Read(buffer)
 		if err != nil {
 			log.Println("read tcp client error")
 			break
 		}
-		// log.Println(buffer)
 		tmpBuffer = protocol.Unpack(append(tmpBuffer, buffer[:n]...), readerChannel)
 	}
 }
 
-func (self *session) writeTcpPump() {
+func (s *session) writeTcpPump() {
 	defer func() {
-		self.hub.unregister <- self
-		self.tcpConn.Close()
+		s.hub.unregister <- s
+		s.tcpConn.Close()
 	}()
-
 	for {
 		select {
-		case message, ok := <-self.send:
-			self.tcpConn.SetWriteDeadline(time.Now().Add(writeWait))
+		case message, ok := <-s.send:
+			s.tcpConn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				msgBytes, _ := json.Marshal(msg{
+				msgBytes, _ := json.Marshal(proto.Msg{
 					Ver: version,
-					Op:  serverReplyError,
+					Op:  proto.ServerReplyError,
 				})
-				self.tcpConn.Write(protocol.Packet(msgBytes))
+				s.tcpConn.Write(protocol.Packet(msgBytes))
 			}
 			msgBytes, _ := json.Marshal(message)
-			self.tcpConn.Write(protocol.Packet(msgBytes))
-
-			length := len(self.send)
+			s.tcpConn.Write(protocol.Packet(msgBytes))
+			length := len(s.send)
 			for i := 0; i < length; i++ {
-				msgBytes, _ = json.Marshal(<-self.send)
-				self.tcpConn.Write(protocol.Packet(msgBytes))
-
+				msgBytes, _ = json.Marshal(<-s.send)
+				s.tcpConn.Write(protocol.Packet(msgBytes))
 			}
-			// self.tcpConn.Write()
+			// s.tcpConn.Write()
 		}
 	}
 }
 
-func (self *session) readChan(readerChan <-chan []byte) {
-	var message msg
+func (s *session) readChan(readerChan <-chan []byte) {
+	var message proto.Msg
 	for {
 		select {
 		case data := <-readerChan:
 			json.Unmarshal(data, &message)
-			self.parseMsg(message)
-
+			s.parseMsg(&message)
 		}
 	}
 }
 
-func (self *session) parseMsg(message msg) {
-	var responMsg msg
+func (s *session) parseMsg(message *proto.Msg) {
+
 	switch message.Op {
-	case clientSendHeartbeat:
-		msgResp := message
-		msgResp.Op = serverReplyHeartbeat
-		self.hub.receiver <- &message
-		self.send <- msgResp
-	case authRequest:
-		responMsg.Op = authResponse
-		responMsg.Status = 1
-		responMsg.Ver = message.Ver
-		self.hub.receiver <- &message
-		self.send <- responMsg
-	case clientSendMsg:
-		responMsg.Op = serverReplyMsg
-		responMsg.Status = 1
-		responMsg.Ver = message.Ver
-		self.hub.receiver <- &message
-		self.send <- responMsg
+	case proto.ClientSendHeartbeat:
+		message.Op = proto.ServerReplyHeartbeat
+	case proto.AuthRequest:
+		message.Op = proto.AuthResponse
+		message.Status = 1
+		message.Ver = message.Ver
+	case proto.ClientSendMsg:
+		message.Op = proto.ServerReplyMsg
+		message.Status = 1
+		message.Ver = message.Ver
 	default:
-		self.send <- message
+		log.Println("unknown operation")
 	}
 }
