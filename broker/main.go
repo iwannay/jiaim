@@ -1,7 +1,7 @@
 package main
 
 import (
-	"app/pkg/http"
+	"jiaim/pkg/http"
 	"log"
 
 	"github.com/go-redis/redis"

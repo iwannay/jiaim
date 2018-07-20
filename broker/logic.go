@@ -1,14 +1,14 @@
 package main
 
 import (
-	"app/pkg/http"
 	"encoding/json"
+	"jiaim/pkg/http"
 	"log"
 
 	"github.com/gorilla/websocket"
 
-	"app/pkg/proto"
 	"fmt"
+	"jiaim/pkg/proto"
 	"time"
 )
 

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"app/pkg/proto"
 	"encoding/json"
 	"fmt"
+	"jiaim/pkg/proto"
 	"log"
 	"time"
 
@@ -44,7 +44,7 @@ func (h *History) GroupMsg(gid string, sid string, cursor float64, msgs *[]proto
 		readVals []string
 	)
 
-	vals, err := RedisClient.LRange(key, 0, -1).Result()
+	vals, err := RedisClient.ZRange(key, 0, -1).Result()
 
 	if err != nil {
 		return err
@@ -66,7 +66,7 @@ func (h *History) GroupMsg(gid string, sid string, cursor float64, msgs *[]proto
 			}
 		}
 	} else {
-		readVals, err = RedisClient.LRange(readKey, 0, -1).Result()
+		readVals, err = RedisClient.ZRange(readKey, 0, -1).Result()
 		if Debug {
 			log.Println("use read group msg", readVals)
 		}
@@ -137,7 +137,7 @@ func (h *History) UserMsg(sessionId string, cursor float64, msgs *[]proto.Msg) e
 		err            error
 		vals, readVals []string
 	)
-	vals, err = RedisClient.LRange(key, 0, -1).Result()
+	vals, err = RedisClient.ZRange(key, 0, -1).Result()
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func (h *History) UserMsg(sessionId string, cursor float64, msgs *[]proto.Msg) e
 
 	} else {
 		// 查询已读列表
-		readVals, err = RedisClient.LRange(readKey, 0, -1).Result()
+		readVals, err = RedisClient.ZRange(readKey, 0, -1).Result()
 		if Debug {
 			log.Println("use read msg", readVals)
 		}
@@ -196,7 +196,7 @@ func (h *History) Push(msg *proto.Msg) (int64, error) {
 		bts  []byte
 	)
 
-	msg.MsgId = fmt.Sprint(time.Now().UnixNano())
+	msg.MsgId = fmt.Sprint(time.Now().Unix())
 
 	// 只有是用户发送的消息才会放入消息盒子
 	if msg.Op != proto.ServerReplyMsg {
@@ -223,8 +223,12 @@ func (h *History) Push(msg *proto.Msg) (int64, error) {
 
 	push = func(key, data string) error {
 		err = RedisClient.Watch(func(tx *redis.Tx) error {
-
-			l, err := tx.RPush(key, data).Result()
+			now := time.Now()
+			l, err := tx.ZAdd(key, redis.Z{
+				Score:  float64(now.Unix()),
+				Member: data,
+			}).Result()
+			// l, err := tx.RPush(key, data).Result()
 			if Debug {
 				log.Println("push ", l, err)
 			}
@@ -232,16 +236,14 @@ func (h *History) Push(msg *proto.Msg) (int64, error) {
 				return err
 			}
 
-			// 多了移除
-			if l >= h.length {
-				_, err = tx.Pipelined(func(pipe redis.Pipeliner) error {
-					for i := h.length; i < l; i++ {
-						pipe.LPop(key)
-					}
-					return nil
-				})
+			_, err = tx.Pipelined(func(pipe redis.Pipeliner) error {
+				remStart := fmt.Sprint(now.Add(-30 * 24 * time.Hour).Unix())
+				remEnd := fmt.Sprint(now.Add(-60 * 24 * time.Hour).Unix())
 
-			}
+				pipe.ZRemRangeByScore(key, remStart, remEnd)
+				return nil
+			})
+
 			return err
 
 		})
@@ -329,8 +331,13 @@ func (h *History) Receipt(msg *proto.Msg) (int64, error) {
 
 	push = func(key string, msgId string) error {
 		err = RedisClient.Watch(func(tx *redis.Tx) error {
+			now := time.Now()
+			l, err := tx.ZAdd(key, redis.Z{
+				Score:  float64(now.YearDay()),
+				Member: msgId,
+			}).Result()
 
-			l, err := tx.RPush(key, msgId).Result()
+			// l, err := tx.RPush(key, msgId).Result()
 			if Debug {
 				log.Println("push ", key, l, err)
 			}
@@ -338,16 +345,15 @@ func (h *History) Receipt(msg *proto.Msg) (int64, error) {
 				return err
 			}
 
-			// 多了移除
-			if l >= h.length {
-				_, err = tx.Pipelined(func(pipe redis.Pipeliner) error {
-					for i := h.length; i < l; i++ {
-						pipe.LPop(key)
-					}
-					return nil
-				})
+			_, err = tx.Pipelined(func(pipe redis.Pipeliner) error {
 
-			}
+				remStart := fmt.Sprint(now.Add(-30 * 24 * time.Hour).YearDay())
+				remEnd := fmt.Sprint(now.Add(-60 * 24 * time.Hour).YearDay())
+
+				pipe.ZRemRangeByScore(key, remStart, remEnd)
+				return nil
+			})
+
 			return err
 
 		})

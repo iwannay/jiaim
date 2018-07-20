@@ -1,8 +1,8 @@
 package helloworld
 
 import (
-	"app/logic/router"
-	"app/pkg/proto"
+	"jiaim/logic/router"
+	"jiaim/pkg/proto"
 )
 
 func Hello(msg *proto.Msg) *proto.Msg {

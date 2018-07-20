@@ -1,7 +1,7 @@
 package main
 
 import (
-	"app/pkg/proto"
+	"jiaim/pkg/proto"
 	"log"
 	"net"
 	"net/http"

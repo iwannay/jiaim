@@ -1,7 +1,7 @@
 package router
 
 import (
-	"app/pkg/proto"
+	"jiaim/pkg/proto"
 	"log"
 	"sync"
 )

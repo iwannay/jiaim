@@ -1,10 +1,10 @@
 package main
 
 import (
-	"app/pkg/proto"
-	"app/pkg/protocol"
 	"encoding/json"
 	"fmt"
+	"jiaim/pkg/proto"
+	"jiaim/pkg/protocol"
 	"log"
 	"net"
 	"net/http"
@@ -132,7 +132,7 @@ func (s *session) writePump() {
 
 				s.conn.WriteJSON(msg)
 				// 丢给gc
-				msg.Body = nil
+				// msg.Body = nil
 				s.ch.Cache.GetAdv()
 
 			}
@@ -147,7 +147,7 @@ func (s *session) writePump() {
 				log.Println("group-----", string(state.Body), state.MsgId, *state)
 			}
 			// 丢给gc
-			state.Body = nil
+			// state.Body = nil
 
 		}
 	}

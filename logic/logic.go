@@ -1,9 +1,9 @@
 package logic
 
 import (
-	_ "app/logic/helloworld"
-	"app/logic/router"
-	"app/pkg/proto"
+	_ "jiaim/logic/helloworld"
+	"jiaim/logic/router"
+	"jiaim/pkg/proto"
 )
 
 func Handle(msg *proto.Msg) (resp *proto.Msg, ok bool) {

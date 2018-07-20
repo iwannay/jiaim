@@ -2,13 +2,14 @@
 package main
 
 import (
-	"app/pkg/proto"
 	"encoding/json"
 	"fmt"
+	"jiaim/pkg/proto"
 	"log"
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"time"
 )
 
 func wrapHandler(fn func(w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
@@ -115,6 +116,7 @@ func PushMsg(w http.ResponseWriter, r *http.Request) {
 }
 
 func PushAll(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	body := r.FormValue("body")
 
 	bts, err := json.Marshal(body)
@@ -137,7 +139,8 @@ func PushAll(w http.ResponseWriter, r *http.Request) {
 		v.Broadcast(&message)
 	}
 
-	w.Write([]byte("1"))
+	sub := time.Now().Sub(start).Seconds()
+	w.Write([]byte(fmt.Sprint(sub)))
 }
 
 func PushGroup(w http.ResponseWriter, r *http.Request) {

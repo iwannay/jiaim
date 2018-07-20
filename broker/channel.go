@@ -1,7 +1,7 @@
 package main
 
 import (
-	"app/pkg/proto"
+	"jiaim/pkg/proto"
 )
 
 // TODO 这里后面和session做结合

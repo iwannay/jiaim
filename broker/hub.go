@@ -1,10 +1,10 @@
 package main
 
 import (
-	"app/logic"
-	"app/pkg/hash/cityhash"
-	"app/pkg/proto"
 	"encoding/json"
+	"jiaim/logic"
+	"jiaim/pkg/hash/cityhash"
+	"jiaim/pkg/proto"
 	"log"
 )
 
