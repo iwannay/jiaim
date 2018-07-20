@@ -6,11 +6,12 @@ import (
 
 // TODO 这里后面和session做结合
 type Channel struct {
-	Group   *Group
-	msgChan chan *proto.Msg
-	Cache   Ring
-	Next    *Channel
-	Prev    *Channel
+	Group      *Group
+	msgChan    chan *proto.Msg
+	connectNum int
+	Cache      Ring
+	Next       *Channel
+	Prev       *Channel
 }
 
 func NewChannel(cacheSize, msgChanSize int) *Channel {
@@ -26,7 +27,6 @@ func (c *Channel) Push(msg *proto.Msg) (err error) {
 	case c.msgChan <- msg:
 	default:
 	}
-
 	return
 }
 

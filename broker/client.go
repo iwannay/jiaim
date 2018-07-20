@@ -61,6 +61,21 @@ func (s *session) readPump() {
 	// 	return nil
 	// })
 
+	// 读取历史消息
+	var msgs []proto.Msg
+	globalHub.history.All(s.id, &msgs)
+
+	for _, v := range msgs {
+		message, err := s.ch.Cache.Set()
+		if err != nil {
+			log.Println("[ERROR]", err)
+			break
+		}
+		*message = v
+		s.ch.Cache.SetAdv()
+	}
+	s.ch.Signal()
+
 	for {
 		message, err := s.ch.Cache.Set()
 
@@ -76,14 +91,17 @@ func (s *session) readPump() {
 			break
 		}
 
-		s.ch.Cache.SetAdv()
-		s.ch.Signal()
+		if s.parseMsg(message) {
+			globalHub.history.Push(message)
+			s.ch.Cache.SetAdv()
+			s.ch.Signal()
+		}
 	}
 
 	s.hub.unregister <- s
 	s.ch.Close()
 	s.conn.Close()
-	s.b.Del(s.id)
+	s.b.Del(s.id, s.ch)
 }
 
 func (s *session) writePump() {
@@ -107,7 +125,6 @@ func (s *session) writePump() {
 				if err != nil {
 					break
 				}
-				s.parseMsg(msg)
 				bts, _ := json.Marshal(msg)
 				if Debug {
 					fmt.Println("response----", string(bts))
@@ -125,18 +142,17 @@ func (s *session) writePump() {
 			}
 
 			s.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			s.parseMsg(state)
 			s.conn.WriteJSON(state)
 			if Debug {
 				log.Println("group-----", string(state.Body), state.MsgId, *state)
 			}
 			// 丢给gc
 			state.Body = nil
+
 		}
 	}
 
 	// 写通道已经挂了。。数据全部刷出去。直到读通道也挂了
-	// TODO 后期可以做持久化处理
 	s.conn.Close()
 	for !finish {
 		finish = (s.ch.Ready() == proto.MsgFinish)
@@ -174,8 +190,7 @@ func (s *session) writeTcpPump() {
 			s.tcpConn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				msgBytes, _ := json.Marshal(proto.Msg{
-					Ver: version,
-					Op:  proto.ServerReplyError,
+					Op: proto.ServerReplyError,
 				})
 				s.tcpConn.Write(protocol.Packet(msgBytes))
 			}
@@ -202,20 +217,28 @@ func (s *session) readChan(readerChan <-chan []byte) {
 	}
 }
 
-func (s *session) parseMsg(message *proto.Msg) {
-
+func (s *session) parseMsg(message *proto.Msg) bool {
+	fmt.Printf("\n------------------1\n%+v\n------------------2\n%+v\n", message, s)
+	message.Sid = s.id
 	switch message.Op {
 	case proto.ClientSendHeartbeat:
 		message.Op = proto.ServerReplyHeartbeat
 	case proto.AuthRequest:
 		message.Op = proto.AuthResponse
-		message.Status = 1
-		message.Ver = message.Ver
+		message.Body = json.RawMessage(`"认证成功"`)
 	case proto.ClientSendMsg:
 		message.Op = proto.ServerReplyMsg
-		message.Status = 1
-		message.Ver = message.Ver
+	case proto.ClientSendReceipt:
+		// 消息回执
+		_, err := s.hub.history.Receipt(message)
+		if err != nil {
+			log.Println("[error] 消息回执设置失败", err)
+		}
+		return false
+
 	default:
 		log.Println("unknown operation")
 	}
+
+	return true
 }

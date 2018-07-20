@@ -2,7 +2,6 @@ package main
 
 import (
 	"app/pkg/proto"
-	"fmt"
 	"sync"
 	"sync/atomic"
 )
@@ -16,7 +15,7 @@ type BucketOptions struct {
 
 type Bucket struct {
 	lock    sync.RWMutex
-	chs     map[string]*Channel
+	chs     map[string]map[*Channel]struct{}
 	groups  map[string]*Group
 	options BucketOptions
 
@@ -27,7 +26,7 @@ type Bucket struct {
 
 func NewBucket(options BucketOptions) (b *Bucket) {
 	b = &Bucket{}
-	b.chs = make(map[string]*Channel, options.ChanneilSize)
+	b.chs = make(map[string]map[*Channel]struct{}, options.ChanneilSize)
 	b.options = options
 
 	b.groups = make(map[string]*Group, options.GroupSize)
@@ -46,10 +45,18 @@ func (b *Bucket) Put(key string, gid string, ch *Channel) (err error) {
 	var (
 		group *Group
 		ok    bool
+		val   map[*Channel]struct{}
 	)
 
 	b.lock.Lock()
-	b.chs[key] = ch
+	if val, ok = b.chs[key]; ok {
+		val[ch] = struct{}{}
+	} else {
+		val = make(map[*Channel]struct{})
+		val[ch] = struct{}{}
+		b.chs[key] = val
+	}
+
 	if gid != "" {
 		if group, ok = b.groups[gid]; !ok {
 			group = NewGroup(gid)
@@ -82,21 +89,34 @@ func (b *Bucket) Groups() (res map[string]struct{}) {
 	return
 }
 
-func (b *Bucket) Del(key string) {
+func (b *Bucket) Del(key string, ch *Channel) {
 	var (
-		ok    bool
-		ch    *Channel
-		group *Group
+		ok  bool
+		chs map[*Channel]struct{}
 	)
 	b.lock.Lock()
-	if ch, ok = b.chs[key]; ok {
-		group = ch.Group
-		delete(b.chs, key)
+	if chs, ok = b.chs[key]; ok {
+		// group = ch.Group
+		if ch == nil {
+			delete(b.chs, key)
+		} else {
+			delete(chs, ch)
+		}
 	}
 	b.lock.Unlock()
-	if group != nil && group.Del(ch) {
-		b.DelGroup(group)
+
+	if ch == nil {
+		for v := range chs {
+			if v.Group != nil && v.Group.Del(v) {
+				b.DelGroup(v.Group)
+			}
+		}
+	} else {
+		if ch.Group != nil && ch.Group.Del(ch) {
+			b.DelGroup(ch.Group)
+		}
 	}
+
 }
 
 func (b *Bucket) BroadcastGroup(arg *proto.BoardcastGroupArg) {
@@ -124,7 +144,6 @@ func (b *Bucket) run(c chan *proto.BoardcastGroupArg) {
 	for {
 		args := <-c
 		if g := b.Group(args.GId); g != nil {
-			fmt.Println("herere", string(args.M.Body))
 			g.Push(&args.M)
 		}
 	}
@@ -139,8 +158,17 @@ func (b *Bucket) DelGroup(group *Group) {
 
 func (b *Bucket) Broadcast(msg *proto.Msg) {
 	b.lock.RLock()
-	for _, ch := range b.chs {
-		ch.Push(msg)
+	for _, chs := range b.chs {
+		for v := range chs {
+			v.Push(msg)
+		}
 	}
 	b.lock.RUnlock()
+}
+
+func (b *Bucket) Channel(key string) map[*Channel]struct{} {
+	b.lock.Lock()
+	ch := b.chs[key]
+	b.lock.Unlock()
+	return ch
 }

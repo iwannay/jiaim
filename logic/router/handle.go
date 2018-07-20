@@ -34,7 +34,7 @@ func (l *Logic) Handle(msg *proto.Msg) (resp *proto.Msg, ok bool) {
 	}()
 
 	l.lock.Lock()
-	if f := l.handleMap[msg.Group]; f != nil {
+	if f := l.handleMap[msg.Gid]; f != nil {
 		l.lock.Unlock()
 
 		return f(msg), true

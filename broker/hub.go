@@ -11,6 +11,7 @@ import (
 type hub struct {
 	Buckets    []*Bucket
 	bucketIdx  uint32
+	history    *History
 	receiver   chan *proto.Msg
 	register   chan *session
 	unregister chan *session
@@ -22,6 +23,7 @@ func newhub(buckets []*Bucket) *hub {
 		register:   make(chan *session),
 		Buckets:    buckets,
 		bucketIdx:  uint32(len(buckets)),
+		history:    NewHistory(),
 		unregister: make(chan *session),
 	}
 

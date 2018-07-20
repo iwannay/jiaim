@@ -13,8 +13,12 @@ import (
 )
 
 func authWebsocket(msg *proto.Msg, conn *websocket.Conn) (resp *proto.Auth, err error) {
-	var bts []byte
+	var (
+		bts []byte
+		sid string
+	)
 	err = conn.ReadJSON(msg)
+
 	if err != nil {
 		return
 	}
@@ -25,14 +29,21 @@ func authWebsocket(msg *proto.Msg, conn *websocket.Conn) (resp *proto.Auth, err 
 	}
 
 	if Debug {
+		if msg.Sid == "" {
+			if Debug {
+				log.Printf("empty sessionId:%s|%+v\n", sid, msg)
+			}
+			sid = fmt.Sprintf("%d", time.Now().Unix())
+		} else {
+			sid = msg.Sid
+		}
 		resp = &proto.Auth{
-			SessionId: fmt.Sprintf("%x", time.Now().Unix()),
-			UniqueId:  fmt.Sprintf("%x", time.Now().Unix()),
-			GroupId:   "one-for-all",
+			Sid:  sid,
+			Gids: []string{msg.Gid, "verystar"},
 		}
 	} else {
 		bts, err = DefaultHttpClient.Post("xxx", http.ContentTypeJSON, false, map[string]interface{}{
-			"session_id": msg.SessionId,
+			"session_id": msg.Sid,
 		})
 		if err != nil {
 			json.Unmarshal(bts, msg)
