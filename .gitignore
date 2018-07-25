@@ -29,3 +29,6 @@ broker/watchbin
 broker/*.log
 
 .DS_Store
+
+*.log
+.vscode

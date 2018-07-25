@@ -1,10 +1,10 @@
 package main
 
 import (
-	"app/pkg/protocol"
 	"bufio"
 	"fmt"
 	"io"
+	"jiaim/pkg/protocol"
 	"net"
 	"os"
 	"time"

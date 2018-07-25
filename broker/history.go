@@ -22,12 +22,12 @@ const (
 )
 
 var (
-	redisKeyExpire = 10 * time.Minute
+	redisKeyExpire = 24 * time.Hour * 30
 )
 
 type History struct {
 	length    int64
-	UseCursor bool // 游标方式记录已读消息，不精确，适用于聊天系统；关闭后采用集合方式记录已读消息，精确，适用于服务器推
+	UseCursor bool // 游标方式记录已读消息，适用于聊天系统；关闭后采用集合方式记录已读消息，精确，适用于服务器推
 }
 
 func NewHistory() *History {
@@ -90,6 +90,31 @@ func (h *History) GroupMsg(gid string, sid string, cursor float64, msgs *[]proto
 	return err
 }
 
+func (h *History) GroupHistoryMsg(gid string, msgs *[]proto.Msg) error {
+	var (
+		key = h.groupMsgboxKey(gid)
+	)
+
+	vals, err := RedisClient.ZRange(key, 0, -1).Result()
+
+	if err != nil {
+		log.Println("redis error", err)
+		return err
+	}
+
+	if Debug {
+		log.Println("get group msg", vals)
+	}
+
+	for _, v := range vals {
+		var val proto.Msg
+		err = json.Unmarshal([]byte(v), &val)
+		*msgs = append(*msgs, val)
+	}
+
+	return err
+}
+
 // All 获得用户所有的历史消息
 func (h *History) All(sessionId string, msgs *[]proto.Msg) error {
 	var isGetAll bool
@@ -121,9 +146,6 @@ func (h *History) All(sessionId string, msgs *[]proto.Msg) error {
 
 	if isGetAll == false {
 		err = h.GroupMsg(proto.WholeChannel, sessionId, 0, msgs)
-		if err != nil {
-			log.Println("[error] 获取用户分组消息出错", err)
-		}
 	}
 
 	return err
@@ -228,7 +250,6 @@ func (h *History) Push(msg *proto.Msg) (int64, error) {
 				Score:  float64(now.Unix()),
 				Member: data,
 			}).Result()
-			// l, err := tx.RPush(key, data).Result()
 			if Debug {
 				log.Println("push ", l, err)
 			}
@@ -239,8 +260,8 @@ func (h *History) Push(msg *proto.Msg) (int64, error) {
 			_, err = tx.Pipelined(func(pipe redis.Pipeliner) error {
 				remStart := fmt.Sprint(now.Add(-30 * 24 * time.Hour).Unix())
 				remEnd := fmt.Sprint(now.Add(-60 * 24 * time.Hour).Unix())
-
 				pipe.ZRemRangeByScore(key, remStart, remEnd)
+				pipe.ZRemRangeByRank(key, 0, 0-h.length-1)
 				return nil
 			})
 
@@ -351,6 +372,7 @@ func (h *History) Receipt(msg *proto.Msg) (int64, error) {
 				remEnd := fmt.Sprint(now.Add(-60 * 24 * time.Hour).YearDay())
 
 				pipe.ZRemRangeByScore(key, remStart, remEnd)
+				pipe.ZRemRangeByRank(key, 0, 0-h.length-1)
 				return nil
 			})
 

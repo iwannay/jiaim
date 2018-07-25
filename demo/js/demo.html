@@ -72,6 +72,10 @@
             color: #fff;
             border-radius: 4px;
         }
+        .num-left {
+            float: left;
+            color:gray;
+        }
     </style>
 </head>
 <body>
@@ -93,12 +97,14 @@
         </div>
     </div>
     <script>
+        var i = 1;
         var wsClient = new window.client({
             notify:function(data) {
                 console.log(data);
                 var obj = JSON.parse(data);
-                $("#msg-box").append('<p style="color:red;text-align:right;border-bottom:1px solid black;padding:0 20px 0 5px;margin:5px;">'+obj.body+'</p>')
+                $("#msg-box").append('<p style="color:red;text-align:right;border-bottom:1px solid black;padding:0 20px 0 5px;margin:5px;"><span class="num-left">'+i+'</span>'+obj.body+'</p>')
                 $("#msg-box").scrollTop($("#msg-box")[0].scrollHeight)
+                i++
             }
         });
         
@@ -106,8 +112,5 @@
             wsClient.send($("#msg-body").val());
             $("#msg-body").val("")
         });
-
-
-
     </script>
 </body>

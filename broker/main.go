@@ -2,24 +2,28 @@ package main
 
 import (
 	"jiaim/pkg/http"
+	"jiaim/pkg/rpc"
 	"log"
 
 	"github.com/go-redis/redis"
 )
 
-var globalHub *hub
-var globalConfig *config
+var Hub *hub
+var Config *config
 var DefaultHttpClient *http.HttpClient
 var Debug bool
 var RedisClient *redis.Client
 
 func main() {
 	Debug = true
-	globalConfig = newConfig()
+	Config = newConfig()
 	DefaultHttpClient = http.NewHttpClient()
+	if Debug {
+		log.SetFlags(log.LstdFlags | log.Lshortfile)
+	}
 
-	buckets := make([]*Bucket, globalConfig.bucketSize)
-	for i := 0; i < globalConfig.bucketSize; i++ {
+	buckets := make([]*Bucket, Config.bucketSize)
+	for i := 0; i < Config.bucketSize; i++ {
 		buckets[i] = NewBucket(BucketOptions{
 			GroupSize:     10,
 			ChanneilSize:  10,
@@ -28,7 +32,7 @@ func main() {
 		})
 	}
 
-	globalHub = newhub(buckets)
+	Hub = newhub(buckets)
 
 	RedisClient = redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
@@ -40,6 +44,7 @@ func main() {
 		log.Fatalln(err, pong)
 	}
 
+	go rpc.ListenAndServe(":9997", &Broker{})
 	go listentAndServerTcp()
 	listenAndServer()
 }

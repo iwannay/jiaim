@@ -2,7 +2,7 @@ package main
 
 func newConfig() *config {
 	return &config{
-		bucketSize: 1000,
+		bucketSize: 500,
 		tcpConfig: tcpConfig{
 			ip:   "localhost",
 			port: 50000,
@@ -16,6 +16,7 @@ type config struct {
 	tcpConfig
 	redis redisConfig
 }
+
 type tcpConfig struct {
 	ip   string
 	port int

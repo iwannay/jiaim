@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"jiaim/logic"
 	"jiaim/pkg/hash/cityhash"
 	"jiaim/pkg/proto"
 	"log"
@@ -39,6 +38,28 @@ func (h *hub) Bucket(subKey string) *Bucket {
 	return h.Buckets[idx]
 }
 
+func (h *hub) PushMsg(msg *proto.Msg) {
+	var (
+		bkt *Bucket
+		chs map[*Channel]struct{}
+		ch  *Channel
+		err error
+	)
+
+	h.history.Push(msg)
+	if bkt = h.Bucket(msg.Sid); bkt != nil {
+		if chs = bkt.Channel(msg.Sid); len(chs) != 0 {
+			for ch = range chs {
+				if err = ch.Push(msg); err != nil {
+					log.Println("[error] push msg", err)
+				}
+			}
+		}
+	}
+}
+
+func (h *hub) RouteGroup() {}
+
 func (h *hub) run() {
 	for {
 		select {
@@ -56,7 +77,6 @@ func (h *hub) run() {
 		case msg := <-h.receiver:
 			// TDOO 这里的逻辑暂时应该不用
 			byts, _ := json.Marshal(*msg)
-			logic.Handle(msg)
 			if Debug {
 				log.Println("receiver", string(byts))
 			}

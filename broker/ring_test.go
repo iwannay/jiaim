@@ -12,7 +12,7 @@ func TestRing_Get(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v.MsgId = 1
+	v.MsgId = "1"
 	t.Log("set:", v)
 	r.SetAdv()
 
@@ -22,9 +22,8 @@ func TestRing_Get(t *testing.T) {
 	}
 	r.GetAdv()
 	t.Log("get", v)
-
 	v, err = r.Get()
-	if err != nil {
+	if err == nil {
 		t.Fatal(err)
 	}
 	t.Log(v)

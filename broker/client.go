@@ -63,7 +63,10 @@ func (s *session) readPump() {
 
 	// 读取历史消息
 	var msgs []proto.Msg
-	globalHub.history.All(s.id, &msgs)
+	err := Hub.history.All(s.id, &msgs)
+	if err != nil {
+		log.Println("[error] 获取用户分组消息出错", err)
+	}
 
 	for _, v := range msgs {
 		message, err := s.ch.Cache.Set()
@@ -92,7 +95,7 @@ func (s *session) readPump() {
 		}
 
 		if s.parseMsg(message) {
-			globalHub.history.Push(message)
+			s.hub.history.Push(message)
 			s.ch.Cache.SetAdv()
 			s.ch.Signal()
 		}
@@ -218,7 +221,6 @@ func (s *session) readChan(readerChan <-chan []byte) {
 }
 
 func (s *session) parseMsg(message *proto.Msg) bool {
-	fmt.Printf("\n------------------1\n%+v\n------------------2\n%+v\n", message, s)
 	message.Sid = s.id
 	switch message.Op {
 	case proto.ClientSendHeartbeat:
@@ -228,6 +230,16 @@ func (s *session) parseMsg(message *proto.Msg) bool {
 		message.Body = json.RawMessage(`"认证成功"`)
 	case proto.ClientSendMsg:
 		message.Op = proto.ServerReplyMsg
+		// 当Rid不等于空时为点对点发送消息，此时消息要发双份(自己&收信人)
+		// 如果想要显示发消息人，数据需放在body里
+		if message.Rid != "" {
+			forward := *message
+			forward.Sid = message.Rid
+			// 此时不存在分组
+			forward.Gid = ""
+			s.hub.PushMsg(&forward)
+		}
+
 	case proto.ClientSendReceipt:
 		// 消息回执
 		_, err := s.hub.history.Receipt(message)

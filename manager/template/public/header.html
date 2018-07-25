@@ -1,0 +1,21 @@
+<div class="layui-header">
+    <div class="logo-box">
+        <a href="/" class="layui-logo">
+            <span class="large-w">{{.title}}</span>
+            <span class="min-w">im</span>
+        </a>
+    </div>
+
+    {{if  .user}}
+    <ul class="layui-nav layui-layout-right">
+        <li class="layui-nav-item">
+            <a href="javascript:;">
+                <img src="http://t.cn/RCzsdCq" style="display: none" class="layui-nav-img"> admin
+            </a>
+        </li>
+        <li class="layui-nav-item">
+            <a href="/logout">退出</a>
+        </li>
+    </ul>
+    {{end}}
+</div>

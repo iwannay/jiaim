@@ -6,7 +6,7 @@ import (
 )
 
 type Group struct {
-	Obline uint64
+	Online uint64
 	next   *Channel
 	drop   bool
 	Id     string
@@ -18,7 +18,7 @@ func NewGroup(gid string) (g *Group) {
 	g.Id = gid
 	g.drop = false
 	g.next = nil
-	g.Obline = 0
+	g.Online = 0
 	return
 }
 
@@ -51,7 +51,7 @@ func (g *Group) Put(ch *Channel) (err error) {
 		ch.Next = g.next
 		ch.Prev = nil
 		g.next = ch
-		g.Obline++
+		g.Online++
 	} else {
 		err = ErrorGroupDrop
 	}
@@ -69,8 +69,8 @@ func (g *Group) Del(ch *Channel) bool {
 	} else {
 		g.next = ch.Next
 	}
-	g.Obline--
-	g.drop = (g.Obline == 0)
+	g.Online--
+	g.drop = (g.Online == 0)
 	g.lock.Unlock()
 	return g.drop
 }

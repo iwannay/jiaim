@@ -15,10 +15,10 @@ import (
 
 const (
 	ContentTypeXML  = "application/xml; charset=utf-8"
-	ContentTypeJSON = "application/xml; charset=utf-8"
+	ContentTypeJSON = "application/json; charset=utf-8"
 )
 
-type requestHandler func(reqData map[string]interface{}) io.Reader
+type requestHandler func(reqData interface{}) io.Reader
 type responseHandler func(*http.Response) (rawData []byte)
 
 type pool struct {
@@ -57,7 +57,12 @@ func NewHttpClient() *HttpClient {
 				},
 			},
 		},
-		requestHandle: func(data map[string]interface{}) io.Reader {
+		requestHandle: func(data interface{}) io.Reader {
+
+			if r, ok := data.(io.Reader); ok {
+				return r
+			}
+
 			bts, _ := json.Marshal(data)
 			return bytes.NewBuffer(bts)
 		},
@@ -163,7 +168,7 @@ func (h *HttpClient) SetResponseHandle(fn responseHandler) {
 }
 
 // Post http post提交 设置withTLS为true开启tls双向认证时务必先.setTLS配置参数
-func (h *HttpClient) Post(url string, contentType string, withTLS bool, data map[string]interface{}) ([]byte, error) {
+func (h *HttpClient) Post(url string, contentType string, withTLS bool, data interface{}) ([]byte, error) {
 
 	var httpResp *http.Response
 	var err error

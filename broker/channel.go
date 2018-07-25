@@ -6,7 +6,7 @@ import (
 
 // TODO 这里后面和session做结合
 type Channel struct {
-	Group      *Group
+	Groups     []*Group
 	msgChan    chan *proto.Msg
 	connectNum int
 	Cache      Ring

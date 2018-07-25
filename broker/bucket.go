@@ -19,7 +19,7 @@ type Bucket struct {
 	groups  map[string]*Group
 	options BucketOptions
 
-	// 一个bucket起多少个goroutine接收消息，这么做的目的是把大量的消息分发到足够多的goroutine中
+	// 一个bucket起多个goroutine接收消息，这么做的目的是把大量的消息分发到足够多的goroutine中
 	routines   []chan *proto.BoardcastGroupArg
 	routineNum uint64
 }
@@ -63,7 +63,7 @@ func (b *Bucket) Put(key string, gid string, ch *Channel) (err error) {
 			b.groups[gid] = group
 		}
 
-		ch.Group = group
+		ch.Groups = append(ch.Groups, group)
 	}
 	b.lock.Unlock()
 	if group != nil {
@@ -81,7 +81,7 @@ func (b *Bucket) Groups() (res map[string]struct{}) {
 	res = make(map[string]struct{})
 	b.lock.RLock()
 	for groupId, group = range b.groups {
-		if group.Obline > 0 {
+		if group.Online > 0 {
 			res[groupId] = struct{}{}
 		}
 	}
@@ -91,32 +91,39 @@ func (b *Bucket) Groups() (res map[string]struct{}) {
 
 func (b *Bucket) Del(key string, ch *Channel) {
 	var (
-		ok  bool
-		chs map[*Channel]struct{}
+		ok    bool
+		group *Group
+		chs   map[*Channel]struct{}
 	)
 	b.lock.Lock()
 	if chs, ok = b.chs[key]; ok {
-		// group = ch.Group
 		if ch == nil {
 			delete(b.chs, key)
 		} else {
-			delete(chs, ch)
+			if len(chs) <= 1 {
+				delete(b.chs, key)
+			} else {
+				delete(chs, ch)
+			}
 		}
 	}
 	b.lock.Unlock()
 
 	if ch == nil {
 		for v := range chs {
-			if v.Group != nil && v.Group.Del(v) {
-				b.DelGroup(v.Group)
+			for _, group = range v.Groups {
+				if group != nil && group.Del(v) {
+					b.DelGroup(group)
+				}
 			}
 		}
 	} else {
-		if ch.Group != nil && ch.Group.Del(ch) {
-			b.DelGroup(ch.Group)
+		for _, group = range ch.Groups {
+			if group != nil && group.Del(ch) {
+				b.DelGroup(group)
+			}
 		}
 	}
-
 }
 
 func (b *Bucket) BroadcastGroup(arg *proto.BoardcastGroupArg) {

@@ -9,19 +9,17 @@ import (
 
 func listenAndServer() {
 	mux := http.NewServeMux()
-
-	route(mux)
-
+	RegisterHandle(mux)
 	log.Println("websocket: listen", ":10000")
 	log.Fatal(http.ListenAndServe(":10000", mux))
 }
 
 func listentAndServerTcp() {
-	l, err := net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(globalConfig.tcpConfig.ip), globalConfig.tcpConfig.port, ""})
+	l, err := net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(Config.tcpConfig.ip), Config.tcpConfig.port, ""})
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("Tcp: listen %s:%d", globalConfig.ip, globalConfig.port)
+	log.Printf("Tcp: listen %s:%d", Config.ip, Config.port)
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -38,7 +36,7 @@ func handleTcp(conn net.Conn) {
 	log.Printf("Tcp: accept %s->%s", conn.RemoteAddr().String(), conn.LocalAddr().String())
 	session := &session{
 		id:      id,
-		hub:     globalHub,
+		hub:     Hub,
 		tcpConn: conn,
 		send:    make(chan proto.Msg, 256),
 	}
